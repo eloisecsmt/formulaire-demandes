@@ -104,8 +104,6 @@
         let selectedType = '';
         let requiredDocuments = [];
         let uploadedDocuments = {};
-        let isAuthenticated = false;
-        let userInfo = null;
 
         // Définition des documents requis par type de demande
         const requiredDocumentsByType = {
@@ -143,13 +141,9 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('dateDemande').value = today;
 
-            // Vérifier le statut d'authentification
-            checkAuthStatus();
-
             // Événements
             setupTypeSelection();
             setupFormSubmission();
-            setupAuthButtons();
         });
 
         function setupTypeSelection() {
@@ -164,130 +158,6 @@
                     showSpecificFields(selectedType);
                 });
             });
-        }
-
-        function checkAuthStatus() {
-            fetch('/auth/status')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    isAuthenticated = data.authenticated;
-                    userInfo = data.user || null;
-                    updateAuthUI();
-                })
-                .catch(error => {
-                    console.warn('Backend non disponible ou erreur auth:', error);
-                    // Mode dégradé : afficher un message d'information
-                    isAuthenticated = false;
-                    updateAuthUI(true); // true = mode backend indisponible
-                });
-        }
-
-        function setupAuthButtons() {
-            // Créer les boutons d'authentification
-            const authContainer = document.createElement('div');
-            authContainer.id = 'authContainer';
-            authContainer.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: white;
-                padding: 15px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                z-index: 1000;
-                min-width: 250px;
-            `;
-            
-            document.body.appendChild(authContainer);
-        }
-
-        function updateAuthUI(backendUnavailable = false) {
-            const authContainer = document.getElementById('authContainer');
-            
-            if (backendUnavailable) {
-                authContainer.innerHTML = `
-                    <div style="color: #e67e22; font-weight: 600; margin-bottom: 8px;">
-                        ⚠ Backend non disponible
-                    </div>
-                    <div style="font-size: 0.9rem; margin-bottom: 10px; color: #666;">
-                        Démarrez le serveur Python avec:<br>
-                        <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 3px;">python app.py</code>
-                    </div>
-                `;
-                
-                // Désactiver le bouton d'envoi
-                const submitBtn = document.querySelector('.submit-btn');
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.style.opacity = '0.4';
-                    submitBtn.title = 'Backend non disponible';
-                }
-                return;
-            }
-            
-            if (isAuthenticated && userInfo) {
-                authContainer.innerHTML = `
-                    <div style="color: #27ae60; font-weight: 600; margin-bottom: 8px;">
-                        ✓ Connecté
-                    </div>
-                    <div style="font-size: 0.9rem; margin-bottom: 10px;">
-                        ${userInfo.name}<br>
-                        <span style="color: #666;">${userInfo.email}</span>
-                    </div>
-                    <button onclick="logout()" style="
-                        background: #e74c3c;
-                        color: white;
-                        border: none;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-size: 0.9rem;
-                    ">Se déconnecter</button>
-                `;
-            } else {
-                authContainer.innerHTML = `
-                    <div style="color: #e67e22; font-weight: 600; margin-bottom: 8px;">
-                        ⚠ Non connecté
-                    </div>
-                    <div style="font-size: 0.9rem; margin-bottom: 10px; color: #666;">
-                        Connectez-vous pour envoyer des demandes
-                    </div>
-                    <button onclick="login()" style="
-                        background: #0078d4;
-                        color: white;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-weight: 600;
-                    ">Se connecter avec Microsoft</button>
-                `;
-            }
-            
-            // Mettre à jour le bouton d'envoi
-            const submitBtn = document.querySelector('.submit-btn');
-            if (submitBtn) {
-                if (!isAuthenticated) {
-                    submitBtn.style.opacity = '0.6';
-                    submitBtn.title = 'Connectez-vous d\'abord avec Microsoft';
-                } else {
-                    submitBtn.style.opacity = '1';
-                    submitBtn.title = '';
-                }
-            }
-        }
-
-        function login() {
-            window.location.href = '/auth/login';
-        }
-
-        function logout() {
-            window.location.href = '/auth/logout';
         }
 
         function showSpecificFields(type) {
@@ -647,7 +517,7 @@
         function createRachatFields() {
             return `
                 <div class="document-fields">
-                    ${createDocumentField('majProfilRachat_doc', 'MAJ & profil signés', 'Document de mise à jour et profil client signés (validité 12 mois)')}
+                    ${createDocumentField('majProfilRachat_doc', 'MAJ & profil signée', 'Document de mise à jour et profil client signés (validité 12 mois)')}
                     ${createDocumentField('ribJourRachat_doc', 'RIB à jour', 'Relevé d\'identité bancaire récent pour le virement')}
                 </div>
 
@@ -715,7 +585,7 @@
         function createArbitrageFields() {
             return `
                 <div class="document-fields">
-                    ${createDocumentField('majProfilArbitrage_doc', 'MAJ & profil signés', 'Document de mise à jour et profil client signés (validité 12 mois)')}
+                    ${createDocumentField('majProfilArbitrage_doc', 'MAJ & profil signée', 'Document de mise à jour et profil client signés (validité 12 mois)')}
                 </div>
 
                 <div class="form-cards-container">
@@ -759,12 +629,6 @@
                     return;
                 }
 
-                // Vérifier l'authentification
-                if (!isAuthenticated) {
-                    alert('Veuillez vous connecter avec votre compte Microsoft pour envoyer la demande.');
-                    return;
-                }
-
                 // Créer FormData avec tous les champs + fichiers
                 const formData = new FormData(form);
                 
@@ -791,7 +655,20 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        alert('Demande envoyée avec succès!\n\nL\'email a été envoyé depuis votre compte Outlook vers Éloise.');
+                        // Ouvrir automatiquement le client mail
+                        if (data.mailto_url) {
+                            window.location.href = data.mailto_url;
+                        }
+                        
+                        // Message de confirmation
+                        let message = 'Demande préparée avec succès!\n\n';
+                        if (data.download_link) {
+                            message += `Les documents ont été uploadés sur Swiss Transfer.\n`;
+                            message += `Lien: ${data.download_link}\n\n`;
+                        }
+                        message += 'Votre client mail va s\'ouvrir avec le message pré-rempli.\nVérifiez le contenu et cliquez sur "Envoyer".';
+                        
+                        alert(message);
                         
                         // Réinitialiser le formulaire
                         form.reset();
@@ -806,13 +683,7 @@
                         document.getElementById('dateDemande').value = today;
                         
                     } else {
-                        if (data.message && data.message.includes('Non authentifié')) {
-                            alert('Session expirée. Veuillez vous reconnecter.');
-                            isAuthenticated = false;
-                            updateAuthUI();
-                        } else {
-                            alert('Erreur lors de l\'envoi: ' + data.message);
-                        }
+                        alert('Erreur lors de la préparation: ' + data.message);
                     }
                 })
                 .catch(error => {
