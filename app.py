@@ -1,30 +1,18 @@
-def upload_to_swiss_transfer_simple(files, transfer_title):
-    """Version de fallback - simulation en cas d'échec des API"""
-    
-    file_count = len([f for f in files.values() if f and f.filename])
-    
-    # Si toutes les méthodes échouent, au moins informer l'utilisateur
-    print(f"FALLBACK: Simulation pour {file_count} fichiers")
-    
-    # Simuler un ID de transfert pour que le workflow continue
-    import uuid
-    fake_id = str(uuid.uuid4())[:8]
-    
-    # Retourner un lien qui indique qu'il faut uploader manuellement
-    return f"❌ ERREUR UPLOAD AUTOMATIQUE ❌\n\nVeuillez uploader manuellement vos {file_count} fichiers sur:\nhttps://www.swisstransfer.com\n\nEt joindre le lien dans votre email."from flask import Flask, request, send_from_directory, jsonify
+from flask import Flask, request, send_from_directory, jsonify
 from flask_cors import CORS
 import requests
 import os
 from datetime import datetime
 import tempfile
 import json
+import uuid
+import re
 
 app = Flask(__name__)
 CORS(app)
 
 # Configuration
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com')
-SWISS_TRANSFER_API = "https://api.swisstransfer.com/v1"
 
 # Servir les fichiers statiques (HTML, CSS)
 @app.route('/')
@@ -61,7 +49,8 @@ def envoyer_demande():
         # Ajouter le lien de téléchargement au corps du mail
         if download_link:
             corps += f"\n\n=== DOCUMENTS JOINTS ===\n"
-            corps += f"📎 Tous les documents ({len([f for f in files.values() if f.filename])}) fichiers) :\n"
+            file_count = len([f for f in files.values() if f.filename])
+            corps += f"📎 Tous les documents ({file_count} fichiers) :\n"
             corps += f"{download_link}\n\n"
             corps += f"⚠️ Ce lien expire automatiquement dans 30 jours"
         else:
@@ -133,7 +122,6 @@ def upload_to_swiss_transfer(files, transfer_title):
                 response_text = response.text
                 if 'swisstransfer.com/d/' in response_text:
                     # Extraire l'URL de la réponse HTML
-                    import re
                     match = re.search(r'https://www\.swisstransfer\.com/d/([a-zA-Z0-9\-]+)', response_text)
                     if match:
                         return match.group(0)
@@ -213,6 +201,20 @@ def upload_to_swiss_transfer_alternative(files, transfer_title):
         print(f"Erreur API alternative: {str(e)}")
         # En dernier recours, utiliser la simulation
         return upload_to_swiss_transfer_simple(files, transfer_title)
+
+def upload_to_swiss_transfer_simple(files, transfer_title):
+    """Version de fallback - simulation en cas d'échec des API"""
+    
+    file_count = len([f for f in files.values() if f and f.filename])
+    
+    # Si toutes les méthodes échouent, au moins informer l'utilisateur
+    print(f"FALLBACK: Simulation pour {file_count} fichiers")
+    
+    # Simuler un ID de transfert pour que le workflow continue
+    fake_id = str(uuid.uuid4())[:8]
+    
+    # Retourner un message d'erreur informatif
+    return f"❌ ERREUR UPLOAD AUTOMATIQUE ❌\n\nVeuillez uploader manuellement vos {file_count} fichiers sur:\nhttps://www.swisstransfer.com\n\nEt joindre le lien dans votre email."
 
 def generer_corps_email(data):
     """Génère le contenu formaté de l'email"""
