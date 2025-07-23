@@ -13,6 +13,8 @@ CORS(app)
 
 # Configuration
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com')
+SMASH_API_TOKEN = os.environ.get('SMASH_API_TOKEN', '')  # Votre clé API Smash
+SMASH_REGION = os.environ.get('SMASH_REGION', 'eu-west-3')  # Région la plus proche de la France
 
 # Servir les fichiers statiques (HTML, CSS)
 @app.route('/')
@@ -41,18 +43,22 @@ def envoyer_demande():
         # Construire le corps du mail
         corps = generer_corps_email(data)
         
-        # Upload des fichiers vers Swiss Transfer
+        # Upload des fichiers vers Smash
         download_link = None
         if files and any(file.filename for file in files.values() if file):
-            download_link = upload_to_swiss_transfer(files, f"{nom} {prenom} - {type_demande}")
+            transfer_title = f"{nom} {prenom} - {type_demande}"
+            download_link = upload_to_smash(files, transfer_title)
         
         # Ajouter le lien de téléchargement au corps du mail
-        if download_link:
+        if download_link and not download_link.startswith('❌'):
             corps += f"\n\n=== DOCUMENTS JOINTS ===\n"
             file_count = len([f for f in files.values() if f.filename])
             corps += f"📎 Tous les documents ({file_count} fichiers) :\n"
             corps += f"{download_link}\n\n"
             corps += f"⚠️ Ce lien expire automatiquement dans 30 jours"
+        elif download_link:
+            # En cas d'erreur d'upload
+            corps += f"\n\n=== DOCUMENTS JOINTS ===\n{download_link}"
         else:
             corps += "\n\n=== DOCUMENTS JOINTS ===\nAucun document joint"
         
@@ -70,151 +76,115 @@ def envoyer_demande():
         print(f"Erreur: {str(e)}")
         return jsonify({"status": "error", "message": f"Erreur lors de l'envoi: {str(e)}"}), 500
 
-def upload_to_swiss_transfer(files, transfer_title):
-    """Upload les fichiers vers Swiss Transfer et retourne le lien de téléchargement"""
+def upload_to_smash(files, transfer_title):
+    """Upload les fichiers vers Smash et retourne le lien de téléchargement"""
+    
+    if not SMASH_API_TOKEN:
+        return "❌ ERREUR: Clé API Smash manquante\n\nVeuillez configurer SMASH_API_TOKEN dans les variables d'environnement."
     
     try:
-        # Swiss Transfer utilise une API simple basée sur des requêtes multipart
-        
         # Préparer les fichiers pour l'upload
-        files_data = []
-        form_data = {
-            'title': transfer_title,
-            'message': 'Documents joints à la demande client',
-            'lang': 'fr',
-            'duration': '30'  # 30 jours
-        }
+        upload_files = []
+        file_names = []
         
-        # Ajouter chaque fichier
-        file_index = 0
         for key, file in files.items():
             if file and file.filename:
                 # Lire le contenu du fichier
                 file_content = file.read()
-                files_data.append(
-                    ('files[]', (file.filename, file_content, file.content_type or 'application/octet-stream'))
-                )
-                file_index += 1
+                file.seek(0)  # Remettre le curseur au début
+                
+                # Ajouter à la liste des fichiers à uploader
+                upload_files.append(('files', (file.filename, file_content, file.content_type or 'application/octet-stream')))
+                file_names.append(file.filename)
         
-        if not files_data:
+        if not upload_files:
             raise Exception("Aucun fichier à uploader")
         
-        # Faire la requête vers Swiss Transfer
-        response = requests.post(
-            'https://www.swisstransfer.com/api/upload',
-            data=form_data,
-            files=files_data,
-            timeout=300  # 5 minutes de timeout pour les gros fichiers
-        )
-        
-        if response.status_code == 200:
-            try:
-                result = response.json()
-                if 'downloadUrl' in result:
-                    return result['downloadUrl']
-                elif 'uuid' in result:
-                    # Construire l'URL de téléchargement
-                    return f"https://www.swisstransfer.com/d/{result['uuid']}"
-                else:
-                    raise Exception("Réponse inattendue de Swiss Transfer")
-            except json.JSONDecodeError:
-                # Si la réponse n'est pas du JSON, essayer d'extraire l'URL
-                response_text = response.text
-                if 'swisstransfer.com/d/' in response_text:
-                    # Extraire l'URL de la réponse HTML
-                    match = re.search(r'https://www\.swisstransfer\.com/d/([a-zA-Z0-9\-]+)', response_text)
-                    if match:
-                        return match.group(0)
-                
-                raise Exception("Impossible d'extraire l'URL de téléchargement")
-        else:
-            raise Exception(f"Erreur HTTP {response.status_code}: {response.text}")
-            
-    except requests.exceptions.Timeout:
-        raise Exception("Timeout lors de l'upload - fichiers trop volumineux ou connexion lente")
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Erreur réseau: {str(e)}")
-    except Exception as e:
-        print(f"Erreur Swiss Transfer: {str(e)}")
-        # En cas d'erreur, essayer la méthode alternative
-        return upload_to_swiss_transfer_alternative(files, transfer_title)
-
-def upload_to_swiss_transfer_alternative(files, transfer_title):
-    """Méthode alternative utilisant l'API officielle Swiss Transfer"""
-    
-    try:
-        # Utiliser l'API officielle de Swiss Transfer
-        # Documentation: https://github.com/infomaniak/swisstransfer
-        
-        # Étape 1: Créer un container
-        container_data = {
-            'duration': 30,  # durée en jours
-            'downloadLimit': 100,  # limite de téléchargements
-            'message': 'Documents joints à la demande client',
-            'password': ''
+        # En attendant la documentation complète de l'API REST, 
+        # nous devons reproduire le comportement du SDK Node.js
+        # Étape 1: Créer un transfert
+        transfer_data = {
+            'title': transfer_title,
+            'description': 'Documents joints à la demande client',
+            'availabilityDuration': 2592000,  # 30 jours en secondes
+            'region': SMASH_REGION
         }
         
-        container_response = requests.post(
-            'https://api.swisstransfer.com/api/containers',
-            json=container_data,
-            headers={'Content-Type': 'application/json'}
+        headers = {
+            'Authorization': f'Bearer {SMASH_API_TOKEN}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Créer le transfert d'abord
+        create_response = requests.post(
+            'https://api.fromsmash.com/transfers',
+            json=transfer_data,
+            headers=headers,
+            timeout=60
         )
         
-        if not container_response.ok:
-            raise Exception(f"Erreur création container: {container_response.status_code}")
-        
-        container_result = container_response.json()
-        container_uuid = container_result.get('uuid')
-        upload_host = container_result.get('uploadHost', 'upload.swisstransfer.com')
-        
-        # Étape 2: Upload des fichiers
-        for key, file in files.items():
-            if file and file.filename:
-                file_content = file.read()
-                
-                files_payload = {
-                    'file': (file.filename, file_content, file.content_type or 'application/octet-stream')
-                }
-                
-                upload_response = requests.post(
-                    f'https://{upload_host}/api/containers/{container_uuid}/files',
-                    files=files_payload,
-                    timeout=300
+        if create_response.status_code == 201:
+            transfer_info = create_response.json()
+            transfer_id = transfer_info.get('id')
+            
+            if not transfer_id:
+                raise Exception("Impossible de créer le transfert")
+            
+            # Étape 2: Uploader les fichiers
+            upload_headers = {
+                'Authorization': f'Bearer {SMASH_API_TOKEN}'
+            }
+            
+            upload_response = requests.post(
+                f'https://api.fromsmash.com/transfers/{transfer_id}/files',
+                files=upload_files,
+                headers=upload_headers,
+                timeout=600  # 10 minutes pour les gros fichiers
+            )
+            
+            if upload_response.status_code in [200, 201]:
+                # Étape 3: Finaliser le transfert
+                finalize_response = requests.post(
+                    f'https://api.fromsmash.com/transfers/{transfer_id}/finish',
+                    headers=headers,
+                    timeout=60
                 )
                 
-                if not upload_response.ok:
-                    raise Exception(f"Erreur upload {file.filename}: {upload_response.status_code}")
-        
-        # Étape 3: Finaliser le transfert
-        finalize_response = requests.post(
-            f'https://api.swisstransfer.com/api/containers/{container_uuid}/finish'
-        )
-        
-        if finalize_response.ok:
-            # Construire l'URL de téléchargement
-            download_url = f"https://www.swisstransfer.com/d/{container_uuid}"
-            return download_url
+                if finalize_response.status_code == 200:
+                    # Récupérer l'URL de téléchargement
+                    transfer_url = transfer_info.get('transferUrl') or f"https://fromsmash.com/{transfer_id}"
+                    return transfer_url
+                else:
+                    raise Exception(f"Erreur finalisation: {finalize_response.status_code}")
+            else:
+                raise Exception(f"Erreur upload fichiers: {upload_response.status_code} - {upload_response.text}")
         else:
-            raise Exception(f"Erreur finalisation: {finalize_response.status_code}")
+            raise Exception(f"Erreur création transfert: {create_response.status_code} - {create_response.text}")
             
+    except requests.exceptions.Timeout:
+        return upload_to_smash_fallback(files, transfer_title, "timeout")
+    except requests.exceptions.RequestException as e:
+        return upload_to_smash_fallback(files, transfer_title, f"réseau: {str(e)}")
     except Exception as e:
-        print(f"Erreur API alternative: {str(e)}")
-        # En dernier recours, utiliser la simulation
-        return upload_to_swiss_transfer_simple(files, transfer_title)
+        print(f"Erreur Smash: {str(e)}")
+        return upload_to_smash_fallback(files, transfer_title, str(e))
 
-def upload_to_swiss_transfer_simple(files, transfer_title):
-    """Version de fallback - simulation en cas d'échec des API"""
+def upload_to_smash_fallback(files, transfer_title, error_reason):
+    """Méthode de fallback en cas d'échec de l'API Smash"""
     
     file_count = len([f for f in files.values() if f and f.filename])
     
-    # Si toutes les méthodes échouent, au moins informer l'utilisateur
-    print(f"FALLBACK: Simulation pour {file_count} fichiers")
-    
-    # Simuler un ID de transfert pour que le workflow continue
-    fake_id = str(uuid.uuid4())[:8]
-    
-    # Retourner un message d'erreur informatif
-    return f"❌ ERREUR UPLOAD AUTOMATIQUE ❌\n\nVeuillez uploader manuellement vos {file_count} fichiers sur:\nhttps://www.swisstransfer.com\n\nEt joindre le lien dans votre email."
+    return f"""❌ ERREUR UPLOAD AUTOMATIQUE ❌
+
+Raison: {error_reason}
+
+Veuillez uploader manuellement vos {file_count} fichiers sur:
+https://fromsmash.com
+
+Puis joindre le lien dans votre email.
+
+Fichiers à uploader:
+{chr(10).join([f"- {f.filename}" for f in files.values() if f and f.filename])}"""
 
 def generer_corps_email(data):
     """Génère le contenu formaté de l'email"""
