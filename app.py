@@ -14,7 +14,7 @@ CORS(app)
 # Configuration Uploadcare
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com')
 UPLOADCARE_PUBLIC_KEY = os.environ.get('UPLOADCARE_PUBLIC_KEY', '5a750c530fdc3fe958c8')
-UPLOADCARE_SECRET_KEY = os.environ.get('UPLOADCARE_SECRET_KEY', '')  # Votre clé privée
+UPLOADCARE_SECRET_KEY = os.environ.get('UPLOADCARE_SECRET_KEY', 'ad1a9f46fa1c732bfebc')
 
 # Servir les fichiers statiques (HTML, CSS)
 @app.route('/')
