@@ -400,6 +400,15 @@
                             <span class="card-icon">💰</span>
                             <h3>Informations financières</h3>
                         </div>
+                        <div class="form-group">
+                            <label for="typeVersement">Type de versement *</label>
+                            <select id="typeVersement" name="typeVersement" required>
+                                <option value="">Sélectionner...</option>
+                                <option value="Versement initial (souscription)">Versement initial (souscription)</option>
+                                <option value="Versement supplémentaire">Versement supplémentaire</option>
+                                <option value="PP (Programmation de versements)">PP (Programmation de versements)</option>
+                            </select>
+                        </div>
                         <div class="card-content">
                             <div class="form-group">
                                 <label for="montantVersement">Montant du versement (€) *</label>
@@ -534,6 +543,14 @@
                         <div class="card-header">
                             <span class="card-icon">💰</span>
                             <h3>Informations financières</h3>
+                        </div>
+                        <div class="form-group">
+                            <label for="typeRachat">Type de rachat *</label>
+                            <select id="typeRachat" name="typeRachat" required>
+                                <option value="">Sélectionner...</option>
+                                <option value="Rachat total">Rachat total</option>
+                                <option value="Rachat partiel">Rachat partiel</option>
+                            </select>
                         </div>
                         <div class="card-content">
                             <div class="form-group">
@@ -708,5 +725,6 @@
     </script>
 </body>
 </html>
+
 
 
