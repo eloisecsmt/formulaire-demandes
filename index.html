@@ -241,67 +241,126 @@
             });
         }
 
-        function handleDocumentUpload(inputId, docName) {
-            const input = document.getElementById(inputId);
-            const fileList = document.getElementById(inputId + '_list');
+        // 1. Fonction de validation du format de nom de fichier
+        function validateFileName(fileName, nom, prenom, typeDemande) {
+            // Supprimer l'extension pour la vérification
+            const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
             
-            if (!uploadedDocuments[inputId]) {
-                uploadedDocuments[inputId] = [];
-            }
+            // Format attendu: NOM_Prenom_TypeDemande
+            const expectedFormat = `${nom.toUpperCase()}_${prenom}_${typeDemande}`;
+            
+            // Vérification stricte
+            return nameWithoutExt === expectedFormat;
+        }
+        
+        // 2. Fonction de validation flexible (accepte des variantes)
+        function validateFileNameFlexible(fileName, nom, prenom, typeDemande) {
+            const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "").toLowerCase();
+            const nomLower = nom.toLowerCase();
+            const prenomLower = prenom.toLowerCase();
+            const typeLower = typeDemande.toLowerCase();
+            
+            // Accepte différents séparateurs et casses
+            const patterns = [
+                `${nomLower}_${prenomLower}_${typeLower}`,
+                `${nomLower}-${prenomLower}-${typeLower}`,
+                `${nomLower} ${prenomLower} ${typeLower}`,
+                `${prenomLower}_${nomLower}_${typeLower}`,
+                `${prenomLower}-${nomLower}-${typeLower}`
+            ];
+            
+            return patterns.some(pattern => nameWithoutExt.includes(pattern));
+        }
 
-            if (input.files.length > 0) {
-                // Ajouter les nouveaux fichiers à la liste existante
-                Array.from(input.files).forEach(file => {
-                    // Vérifier si le fichier n'est pas déjà dans la liste
-                    const exists = uploadedDocuments[inputId].some(existingFile => 
-                        existingFile.name === file.name && existingFile.size === file.size
+        function handleDocumentUpload(inputId, docName) {
+        const input = document.getElementById(inputId);
+        const fileList = document.getElementById(inputId + '_list');
+        
+        // Récupérer les infos du client
+        const nom = document.getElementById('nom').value;
+        const prenom = document.getElementById('prenom').value;
+        const typeDemande = selectedType;
+        
+        if (!uploadedDocuments[inputId]) {
+            uploadedDocuments[inputId] = [];
+        }
+    
+        if (input.files.length > 0) {
+            Array.from(input.files).forEach(file => {
+                // VALIDATION DU NOM DE FICHIER
+                const isValidName = validateFileNameFlexible(file.name, nom, prenom, typeDemande);
+                
+                if (!isValidName && nom && prenom) {
+                    // Avertissement si le nom ne correspond pas
+                    const expectedFormat = `${nom.toUpperCase()}_${prenom}_${typeDemande}`;
+                    const userConfirm = confirm(
+                        `Le fichier "${file.name}" ne respecte pas le format recommandé.\n\n` +
+                        `Format attendu: ${expectedFormat}.extension\n\n` +
+                        `Voulez-vous tout de même l'ajouter ?`
                     );
                     
-                    if (!exists) {
-                        uploadedDocuments[inputId].push({
-                            file: file,
-                            name: docName,
-                            id: Date.now() + Math.random() // ID unique pour chaque fichier
-                        });
+                    if (!userConfirm) {
+                        return; // Skip ce fichier
                     }
-                });
-
-                updateFileList(inputId);
-            }
-
-            // Remettre l'input à zéro pour permettre de rajouter des fichiers
-            input.value = '';
-            updateSubmitButton();
+                }
+                
+                // Vérifier si le fichier n'est pas déjà dans la liste
+                const exists = uploadedDocuments[inputId].some(existingFile => 
+                    existingFile.name === file.name && existingFile.size === file.size
+                );
+                
+                if (!exists) {
+                    uploadedDocuments[inputId].push({
+                        file: file,
+                        name: docName,
+                        id: Date.now() + Math.random(),
+                        isValidName: isValidName || !nom || !prenom // Valid si pas encore de nom/prénom saisis
+                    });
+                }
+            });
+    
+            updateFileList(inputId);
         }
+    
+        input.value = '';
+        updateSubmitButton();
+    }
 
         function updateFileList(inputId) {
             const fileList = document.getElementById(inputId + '_list');
             const files = uploadedDocuments[inputId] || [];
-
+        
             if (files.length > 0) {
                 fileList.classList.remove('hidden');
                 fileList.innerHTML = '';
-
+        
                 files.forEach((fileData, index) => {
                     const fileItem = document.createElement('div');
                     fileItem.className = 'file-item';
                     
+                    // Ajouter classe CSS selon la validité du nom
+                    if (fileData.isValidName === false) {
+                        fileItem.classList.add('invalid-name');
+                    }
+                    
                     const fileSize = formatFileSize(fileData.file.size);
+                    const nameIndicator = fileData.isValidName === false ? ' ⚠️' : '';
                     
                     fileItem.innerHTML = `
                         <div class="file-item-info">
                             <span class="file-item-icon">📄</span>
                             <div>
-                                <div class="file-item-name">${fileData.file.name}</div>
+                                <div class="file-item-name">${fileData.file.name}${nameIndicator}</div>
                                 <div class="file-item-size">${fileSize}</div>
+                                ${fileData.isValidName === false ? '<div class="file-name-warning">Nom non conforme au format</div>' : ''}
                             </div>
                         </div>
                         <button type="button" class="file-item-remove" onclick="removeDocumentFile('${inputId}', ${index})">Supprimer</button>
                     `;
                     fileList.appendChild(fileItem);
                 });
-
-                // Ajouter un bouton pour ajouter plus de fichiers
+        
+                // Bouton pour ajouter plus de fichiers
                 const addMoreBtn = document.createElement('button');
                 addMoreBtn.type = 'button';
                 addMoreBtn.className = 'add-more-files';
@@ -725,6 +784,7 @@
     </script>
 </body>
 </html>
+
 
 
 
