@@ -366,7 +366,7 @@ Prochain RDV: {data.get('dateRdv', 'Non programmé')}
 
     # Informations spécifiques selon le type
     if data.get('type') == 'versement':
-    corps += f"""=== INFORMATIONS FINANCIÈRES ===
+        corps += f"""=== INFORMATIONS FINANCIÈRES ===
 Type de versement: {data.get('typeVersement', 'Non spécifié')}
 Montant: {data.get('montantVersement', 'Non spécifié')} €
 Allocation: {data.get('allocationVersement', 'Non spécifiée')}
@@ -384,7 +384,7 @@ Spécification: {data.get('clauseBeneficiaireSpec', 'Non spécifiée')}
 """
 
     elif data.get('type') == 'rachat':
-    corps += f"""=== INFORMATIONS FINANCIÈRES ===
+        corps += f"""=== INFORMATIONS FINANCIÈRES ===
 Type de rachat: {data.get('typeRachat', 'Non spécifié')}
 Montant: {data.get('montantRachat', 'Non spécifié')} €
 Fiscalité: {data.get('fiscaliteRachat', 'Non spécifiée')}
@@ -425,5 +425,6 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
