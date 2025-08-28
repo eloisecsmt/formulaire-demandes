@@ -689,3 +689,34 @@ body {
     color: #666;
     font-style: italic;
 }
+.form-group select[id*="type"] {
+    background: #f8f9fa;
+    font-weight: 500;
+    border: 2px solid #dee2e6;
+}
+
+.form-group select[id*="type"]:focus {
+    background: white;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* Améliorer l'apparence des options importantes */
+.form-group select option[value*="initial"],
+.form-group select option[value*="total"] {
+    font-weight: 600;
+    background: #e8f4f8;
+}
+
+/* Responsive pour mobile - améliorer l'espacement */
+@media (max-width: 768px) {
+    .card-content {
+        grid-template-columns: 1fr;
+        padding: 20px;
+        gap: 16px;
+    }
+    
+    .card-content .form-group {
+        margin-bottom: 16px;
+    }
+}
