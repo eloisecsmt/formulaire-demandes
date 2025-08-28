@@ -356,6 +356,7 @@ def generer_corps_email(data):
     corps = f"""=== DEMANDE DE {type_demande} ===
 Date: {data.get('dateDemande', 'Non spécifiée')}
 Client: {data.get('nom', '')} {data.get('prenom', '')}
+Nouveau client: {data.get('nouveauClient', 'Non spécifié')}
 Urgence: {data.get('urgence', 'Normal')}
 Origine: {data.get('origine', 'Non spécifiée')}
 Mode signature: {data.get('modeSignature', 'Non spécifié')}
@@ -422,3 +423,4 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
