@@ -15,7 +15,7 @@ CORS(app)
 
 # Configuration Email pour ZeenDoc
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com')
-ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'repos@zeendoc.com')  # Adresse ZeenDoc
+ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'eloise.csmt@gmail.com')  # Adresse ZeenDoc
 
 # Configuration SMTP (optionnelle pour envoi automatique)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', '')
@@ -638,3 +638,4 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
