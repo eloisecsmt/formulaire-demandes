@@ -16,9 +16,20 @@ from email import encoders
 app = Flask(__name__)
 CORS(app)
 
-# Configuration Email pour ZeenDoc
+# Configuration Email pour ZeenDoc - Multi-secteurs
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'gestionprivee@optia-conseil.fr')
-ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'depot_docusign.optia_finance@zeenmail.com')  # Adresse ZeenDoc
+
+# Adresses ZeenDoc par secteur
+ZEENDOC_EMAIL_LEHAVRE = os.environ.get('ZEENDOC_EMAIL_LEHAVRE', 'depot_lehavre.optia_finance@zeenmail.com')
+ZEENDOC_EMAIL_ROUEN = os.environ.get('ZEENDOC_EMAIL_ROUEN', 'depot_rouen.optia_finance@zeenmail.com')
+ZEENDOC_EMAIL_PARIS = os.environ.get('ZEENDOC_EMAIL_PARIS', 'depot_paris.optia_finance@zeenmail.com')
+
+# Mapping secteur -> adresse ZeenDoc
+ZEENDOC_EMAILS = {
+    'Le Havre': ZEENDOC_EMAIL_LEHAVRE,
+    'Rouen': ZEENDOC_EMAIL_ROUEN,
+    'Paris': ZEENDOC_EMAIL_PARIS
+}
 
 # Configuration SMTP (maintenant obligatoire)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', '')
@@ -30,6 +41,17 @@ SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 LIMITE_EMAIL_MB = int(os.environ.get('LIMITE_EMAIL_MB', '20'))
 DELAI_ENTRE_ENVOIS = int(os.environ.get('DELAI_ENTRE_ENVOIS', '30'))
 MAX_EMAILS_PAR_DEMANDE = int(os.environ.get('MAX_EMAILS_PAR_DEMANDE', '5'))
+
+def obtenir_adresse_zeendoc(secteur_demandeur):
+    """Retourne l'adresse ZeenDoc appropriée selon le secteur"""
+    
+    adresse = ZEENDOC_EMAILS.get(secteur_demandeur)
+    if not adresse:
+        print(f"⚠️  Secteur '{secteur_demandeur}' non reconnu, utilisation adresse par défaut")
+        return ZEENDOC_EMAIL_ROUEN  # Adresse par défaut
+    
+    print(f"📧 Secteur '{secteur_demandeur}' → {adresse}")
+    return adresse
 
 # Servir les fichiers statiques (HTML, CSS)
 @app.route('/')
@@ -54,6 +76,16 @@ def envoyer_demande():
         data = request.form.to_dict()
         files = request.files
         
+        # Récupérer le secteur pour déterminer l'adresse ZeenDoc
+        secteur_demandeur = data.get('secteurDemandeur', '')
+        if not secteur_demandeur:
+            return jsonify({
+                "status": "error", 
+                "message": "Le secteur du demandeur est obligatoire pour déterminer l'adresse de dépôt ZeenDoc."
+            }), 400
+        
+        adresse_zeendoc = obtenir_adresse_zeendoc(secteur_demandeur)
+        
         # Construire le sujet
         type_demande = data.get('type', 'Demande')
         nom = data.get('nom', '')
@@ -61,10 +93,10 @@ def envoyer_demande():
         date_demande = data.get('dateDemande', datetime.now().strftime('%d/%m/%Y'))
         
         sujet_principal = f"Demande {type_demande.title()} - {nom} {prenom} - {date_demande}"
-        sujet_zeendoc = f"[ZEENDOC] Documents - {nom} {prenom} - {type_demande.title()}"
+        sujet_zeendoc = f"[ZEENDOC-{secteur_demandeur.upper()}] Documents - {nom} {prenom} - {type_demande.title()}"
         
         # Construire le corps du mail principal
-        corps_principal = generer_corps_email(data)
+        corps_principal = generer_corps_email(data, adresse_zeendoc)
         
         # Préparer les fichiers pour ZeenDoc
         fichiers_pieces = []
@@ -76,7 +108,8 @@ def envoyer_demande():
         resultats_detailles = {}
         
         try:
-            print("📧 Début des envois automatiques...")
+            print(f"📧 Début des envois automatiques pour secteur: {secteur_demandeur}")
+            print(f"📧 Adresse ZeenDoc: {adresse_zeendoc}")
             
             # 1. Email PRINCIPAL avec ZIP si nécessaire
             print("📧 Envoi email principal...")
@@ -88,14 +121,15 @@ def envoyer_demande():
             )
             
             # 2. Emails ZEENDOC multiples avec fichiers originaux
-            print("📁 Envoi vers ZeenDoc...")
+            print(f"📁 Envoi vers ZeenDoc ({secteur_demandeur})...")
             resultats_zeendoc = []
             if fichiers_pieces:
-                corps_zeendoc = generer_corps_zeendoc(data, fichiers_pieces)
+                corps_zeendoc = generer_corps_zeendoc(data, fichiers_pieces, adresse_zeendoc)
                 resultats_zeendoc = envoyer_emails_zeendoc_multiples(
                     sujet_zeendoc, 
                     corps_zeendoc, 
-                    fichiers_pieces
+                    fichiers_pieces,
+                    adresse_zeendoc  # Nouvelle adresse selon secteur
                 )
             
             # Vérification globale
@@ -106,10 +140,12 @@ def envoyer_demande():
                 'email_principal': envoi_principal,
                 'zeendoc_parties': resultats_zeendoc,
                 'zeendoc_reussi': zeendoc_reussi,
-                'total_emails_zeendoc': len(resultats_zeendoc)
+                'total_emails_zeendoc': len(resultats_zeendoc),
+                'secteur': secteur_demandeur,
+                'adresse_zeendoc': adresse_zeendoc
             }
             
-            print(f"✅ Envois terminés - Principal: {envoi_principal}, ZeenDoc: {zeendoc_reussi}")
+            print(f"✅ Envois terminés - Principal: {envoi_principal}, ZeenDoc ({secteur_demandeur}): {zeendoc_reussi}")
             
         except Exception as e:
             print(f"❌ Erreur envoi automatique: {str(e)}")
@@ -124,7 +160,9 @@ def envoyer_demande():
             "fichiers_count": len(fichiers_pieces),
             "envoi_auto": envoi_auto_reussi,
             "details_envoi": resultats_detailles,
-            "fichiers_info": [f["nom"] for f in fichiers_pieces]
+            "fichiers_info": [f["nom"] for f in fichiers_pieces],
+            "secteur": secteur_demandeur,
+            "adresse_zeendoc": adresse_zeendoc
         })
         
     except Exception as e:
@@ -259,7 +297,7 @@ def diviser_fichiers_par_taille(fichiers_pieces, limite_mb=None):
     
     return groupes
 
-def envoyer_emails_zeendoc_multiples(sujet_base, corps_base, fichiers_pieces):
+def envoyer_emails_zeendoc_multiples(sujet_base, corps_base, fichiers_pieces, adresse_zeendoc):
     """ZeenDoc: Emails multiples pour préserver la qualité"""
     
     if not fichiers_pieces:
@@ -273,7 +311,7 @@ def envoyer_emails_zeendoc_multiples(sujet_base, corps_base, fichiers_pieces):
         groupes_fichiers = groupes_fichiers[:MAX_EMAILS_PAR_DEMANDE]
         total_groupes = len(groupes_fichiers)
     
-    print(f"📧 Division ZeenDoc: {len(fichiers_pieces)} fichiers → {total_groupes} email(s)")
+    print(f"📧 Division ZeenDoc: {len(fichiers_pieces)} fichiers → {total_groupes} email(s) vers {adresse_zeendoc}")
     
     resultats = []
     
@@ -291,11 +329,11 @@ def envoyer_emails_zeendoc_multiples(sujet_base, corps_base, fichiers_pieces):
             )
             
             taille_groupe = sum(f['taille'] for f in groupe)
-            print(f"📤 Envoi partie {index}/{total_groupes} vers ZeenDoc: {len(groupe)} fichier(s) ({format_file_size(taille_groupe)})")
+            print(f"📤 Envoi partie {index}/{total_groupes} vers {adresse_zeendoc}: {len(groupe)} fichier(s) ({format_file_size(taille_groupe)})")
             
-            # Envoi vers ZeenDoc
+            # Envoi vers ZeenDoc avec adresse spécifique au secteur
             succes = envoyer_email_smtp(
-                destinataire=ZEENDOC_EMAIL,
+                destinataire=adresse_zeendoc,  # Adresse spécifique au secteur
                 cc=EMAIL_DESTINATAIRE,  # Copie pour suivi
                 sujet=sujet_numerote,
                 corps=corps_numerote,
@@ -307,13 +345,14 @@ def envoyer_emails_zeendoc_multiples(sujet_base, corps_base, fichiers_pieces):
                 'fichiers_count': len(groupe),
                 'succes': succes,
                 'taille_totale': taille_groupe,
-                'fichiers': [f['nom'] for f in groupe]
+                'fichiers': [f['nom'] for f in groupe],
+                'adresse_zeendoc': adresse_zeendoc
             })
             
             if succes:
-                print(f"✅ Partie {index}/{total_groupes} envoyée avec succès")
+                print(f"✅ Partie {index}/{total_groupes} envoyée avec succès vers {adresse_zeendoc}")
             else:
-                print(f"❌ Échec envoi partie {index}/{total_groupes}")
+                print(f"❌ Échec envoi partie {index}/{total_groupes} vers {adresse_zeendoc}")
             
             # Délai entre envois (sauf dernier)
             if index < total_groupes and succes:
@@ -325,7 +364,8 @@ def envoyer_emails_zeendoc_multiples(sujet_base, corps_base, fichiers_pieces):
             resultats.append({
                 'partie': f"{index}/{total_groupes}",
                 'succes': False,
-                'erreur': str(e)
+                'erreur': str(e),
+                'adresse_zeendoc': adresse_zeendoc
             })
     
     return resultats
@@ -515,18 +555,21 @@ def obtenir_categorie_document(doc_id):
     
     return categories.get(doc_id, 'Général')
 
-def generer_corps_zeendoc(data, fichiers_pieces):
+def generer_corps_zeendoc(data, fichiers_pieces, adresse_zeendoc):
     """Génère le corps de l'email pour ZeenDoc"""
     
     type_demande = data.get('type', 'Non spécifié').upper()
     nom = data.get('nom', '')
     prenom = data.get('prenom', '')
     date_demande = data.get('dateDemande', datetime.now().strftime('%d/%m/%Y'))
+    secteur = data.get('secteurDemandeur', 'Non spécifié')
     
     corps = f"""=== DÉPÔT AUTOMATIQUE ZEENDOC ===
 Type de demande: {type_demande}
 Client: {nom} {prenom}
 Date: {date_demande}
+Secteur: {secteur}
+Adresse de dépôt: {adresse_zeendoc}
 Nombre de pièces: {len(fichiers_pieces)}
 
 === CLASSIFICATION DES DOCUMENTS ===
@@ -551,13 +594,15 @@ Nombre de pièces: {len(fichiers_pieces)}
 === INFORMATIONS TECHNIQUES ===
 Format de nommage: TYPE_NOM_Prenom_TypeDoc_YYYYMMDD.ext
 Origine: Formulaire automatisé de gestion des demandes
+Secteur de traitement: {secteur}
 Horodatage: {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}
 
 === INSTRUCTIONS ZEENDOC ===
 Ces documents sont à classer automatiquement dans le dossier client:
 - Nom du dossier: {nom.upper()} {prenom}
 - Type de demande: {type_demande}
-- Référence: {type_demande}_{nom.upper()}_{prenom}_{datetime.now().strftime('%Y%m%d')}
+- Secteur: {secteur}
+- Référence: {type_demande}_{secteur.replace(' ', '')}_{nom.upper()}_{prenom}_{datetime.now().strftime('%Y%m%d')}
 
 Merci de confirmer la réception et le classement.
 """
@@ -577,14 +622,16 @@ def format_file_size(bytes_size):
     s = round(bytes_size / p, 2)
     return f"{s} {size_names[i]}"
 
-def generer_corps_email(data):
+def generer_corps_email(data, adresse_zeendoc):
     """Génère le contenu formaté de l'email principal"""
     
     type_demande = data.get('type', 'Non spécifié').upper()
+    secteur = data.get('secteurDemandeur', 'Non spécifié')
     
     corps = f"""=== DEMANDE DE {type_demande} ===
 Date: {data.get('dateDemande', 'Non spécifiée')}
 Client: {data.get('nom', '')} {data.get('prenom', '')}
+Secteur: {secteur}
 Nouveau client: {data.get('nouveauClient', 'Non spécifié')}
 Urgence: {data.get('urgence', 'Normal')}
 Origine: {data.get('origine', 'Non spécifiée')}
@@ -636,13 +683,13 @@ Montant: {data.get('allocationArbitrage', 'Non spécifié')} €
 
 === DOCUMENTS JOINTS ===
 📎 Les pièces justificatives ont été envoyées automatiquement vers ZeenDoc
-📧 Adresse de dépôt: {ZEENDOC_EMAIL}
-📁 Référence dossier: {data.get('type', '').upper()}_{data.get('nom', '').upper()}_{data.get('prenom', '')}_{datetime.now().strftime('%Y%m%d')}
+📧 Adresse de dépôt ({secteur}): {adresse_zeendoc}
+📁 Référence dossier: {data.get('type', '').upper()}_{secteur.replace(' ', '')}_{data.get('nom', '').upper()}_{data.get('prenom', '')}_{datetime.now().strftime('%Y%m%d')}
 
 ---
 Demande générée et envoyée automatiquement le {datetime.now().strftime('%d/%m/%Y à %H:%M')}
 Demandeur: {data.get('demandeur', 'Non spécifié')}
-Secteur: {data.get('secteurDemandeur', 'Non spécifié')}
+Secteur: {secteur}
 """
     
     return corps
@@ -651,4 +698,3 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
