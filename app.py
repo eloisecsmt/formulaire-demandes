@@ -367,9 +367,9 @@ Montant: {data.get('allocationArbitrage', 'Non spécifié')} €
     corps += f"""
 
 === DOCUMENTS JOINTS ===
-📎 Les pièces justificatives ont été envoyées automatiquement vers ZeenDoc
-📧 Adresse de dépôt: {ZEENDOC_EMAIL}
-📁 Référence dossier: {data.get('type', '').upper()}_{data.get('nom', '').upper()}_{data.get('prenom', '')}_{datetime.now().strftime('%Y%m%d')}
+Les pieces justificatives ont ete envoyees automatiquement vers ZeenDoc
+Adresse de depot: {ZEENDOC_EMAIL}
+Reference dossier: {data.get('type', '').upper()}_{data.get('nom', '').upper()}_{data.get('prenom', '')}_{datetime.now().strftime('%Y%m%d')}
 
 ---
 Demande générée automatiquement le {datetime.now().strftime('%d/%m/%Y à %H:%M')}
@@ -396,3 +396,4 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
