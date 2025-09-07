@@ -15,7 +15,7 @@ CORS(app)
 
 # Configuration Email pour ZeenDoc
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com')
-ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'eloise.cosmt@gmail.com')  # Adresse ZeenDoc
+ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'repos@zeendoc.com')  # Adresse ZeenDoc
 
 # Configuration SMTP (optionnelle pour envoi automatique)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', '')
@@ -287,9 +287,13 @@ def generer_mailto_zeendoc(sujet, corps):
     
     from urllib.parse import quote
     
+    # Nettoyer les caractères spéciaux pour mailto
+    corps_clean = corps.replace('é', 'e').replace('è', 'e').replace('à', 'a').replace('ç', 'c')
+    corps_clean = corps_clean.replace('ê', 'e').replace('ô', 'o').replace('î', 'i').replace('â', 'a')
+    
     # Encoder les paramètres
-    sujet_encode = quote(sujet)
-    corps_encode = quote(corps)
+    sujet_encode = quote(sujet.encode('utf-8'))
+    corps_encode = quote(corps_clean.encode('utf-8'))
     
     # mailto avec destinataire principal et copie
     mailto_url = f"mailto:{ZEENDOC_EMAIL}?cc={EMAIL_DESTINATAIRE}&subject={sujet_encode}&body={corps_encode}"
@@ -367,9 +371,9 @@ Montant: {data.get('allocationArbitrage', 'Non spécifié')} €
     corps += f"""
 
 === DOCUMENTS JOINTS ===
-Les pieces justificatives ont ete envoyees automatiquement vers ZeenDoc
-Adresse de depot: {ZEENDOC_EMAIL}
-Reference dossier: {data.get('type', '').upper()}_{data.get('nom', '').upper()}_{data.get('prenom', '')}_{datetime.now().strftime('%Y%m%d')}
+📎 Les pièces justificatives ont été envoyées automatiquement vers ZeenDoc
+📧 Adresse de dépôt: {ZEENDOC_EMAIL}
+📁 Référence dossier: {data.get('type', '').upper()}_{data.get('nom', '').upper()}_{data.get('prenom', '')}_{datetime.now().strftime('%Y%m%d')}
 
 ---
 Demande générée automatiquement le {datetime.now().strftime('%d/%m/%Y à %H:%M')}
@@ -396,4 +400,3 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
