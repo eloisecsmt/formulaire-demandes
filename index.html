@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Demandes Client</title>
+    <title>Gestion des Demandes Client - ZeenDoc</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,6 +11,10 @@
         <div class="header">
             <h1>Gestion des Demandes Client</h1>
             <p>Sélectionnez le type de demande et complétez les informations requises</p>
+            <div class="zeendoc-info">
+                <span class="zeendoc-badge">📁 Intégration ZeenDoc</span>
+                <small>Documents automatiquement envoyés vers votre dépôt ZeenDoc</small>
+            </div>
         </div>
 
         <div class="form-container">
@@ -92,6 +96,10 @@
                                 <option value="RDV">RDV</option>
                                 <option value="Mail/VP">Mail/VP</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="demandeur">Demandeur (qui fait la demande) *</label>
+                            <input type="text" id="demandeur" name="demandeur" placeholder="Prénom NOM" required>
                         </div>
                     </div>
                 </div>
@@ -194,9 +202,22 @@
                     break;
             }
 
-            // Ajouter le message de validation
+            // Ajouter le message de validation avec info ZeenDoc
             const validationDiv = document.createElement('div');
-            validationDiv.innerHTML = '<div class="validation-message" id="validationMessage">Veuillez joindre au moins un document pour chaque catégorie requise avant de pouvoir envoyer la demande.</div>';
+            validationDiv.innerHTML = `
+                <div class="validation-message" id="validationMessage">
+                    Veuillez joindre au moins un document pour chaque catégorie requise avant de pouvoir envoyer la demande.
+                </div>
+                <div class="zeendoc-workflow-info">
+                    <h4>📁 Workflow ZeenDoc</h4>
+                    <ol>
+                        <li>Vos documents seront automatiquement nommés selon le format ZeenDoc</li>
+                        <li>Un email sera généré vers votre adresse de dépôt ZeenDoc</li>
+                        <li>Les pièces seront classées par catégorie dans le dossier client</li>
+                        <li>Une copie de suivi vous sera envoyée</li>
+                    </ol>
+                </div>
+            `;
             specificContent.appendChild(validationDiv);
 
             // Initialiser les événements pour les nouveaux champs de fichiers
@@ -241,90 +262,82 @@
             });
         }
 
-        // 1. Fonction de validation du format de nom de fichier
-        function validateFileName(fileName, nom, prenom, typeDemande) {
-            // Supprimer l'extension pour la vérification
-            const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
-            
-            // Format attendu: NOM_Prenom_TypeDemande
-            const expectedFormat = `${nom.toUpperCase()}_${prenom}_${typeDemande}`;
-            
-            // Vérification stricte
-            return nameWithoutExt === expectedFormat;
-        }
-        
-        // 2. Fonction de validation flexible (accepte des variantes)
-        function validateFileNameFlexible(fileName, nom, prenom, typeDemande) {
-            const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "").toLowerCase();
-            const nomLower = nom.toLowerCase();
-            const prenomLower = prenom.toLowerCase();
-            const typeLower = typeDemande.toLowerCase();
-            
-            // Accepte différents séparateurs et casses
-            const patterns = [
-                `${nomLower}_${prenomLower}_${typeLower}`,
-                `${nomLower}-${prenomLower}-${typeLower}`,
-                `${nomLower} ${prenomLower} ${typeLower}`,
-                `${prenomLower}_${nomLower}_${typeLower}`,
-                `${prenomLower}-${nomLower}-${typeLower}`
-            ];
-            
-            return patterns.some(pattern => nameWithoutExt.includes(pattern));
-        }
-
         function handleDocumentUpload(inputId, docName) {
-        const input = document.getElementById(inputId);
-        const fileList = document.getElementById(inputId + '_list');
+            const input = document.getElementById(inputId);
+            const fileList = document.getElementById(inputId + '_list');
+            
+            // Récupérer les infos du client
+            const nom = document.getElementById('nom').value;
+            const prenom = document.getElementById('prenom').value;
+            const typeDemande = selectedType;
+            
+            if (!uploadedDocuments[inputId]) {
+                uploadedDocuments[inputId] = [];
+            }
         
-        // Récupérer les infos du client
-        const nom = document.getElementById('nom').value;
-        const prenom = document.getElementById('prenom').value;
-        const typeDemande = selectedType;
-        
-        if (!uploadedDocuments[inputId]) {
-            uploadedDocuments[inputId] = [];
-        }
-    
-        if (input.files.length > 0) {
-            Array.from(input.files).forEach(file => {
-                // VALIDATION DU NOM DE FICHIER
-                const isValidName = validateFileNameFlexible(file.name, nom, prenom, typeDemande);
-                
-                if (!isValidName && nom && prenom) {
-                    // Avertissement si le nom ne correspond pas
-                    const expectedFormat = `${nom.toUpperCase()}_${prenom}_${typeDemande}`;
-                    const userConfirm = confirm(
-                        `Le fichier "${file.name}" ne respecte pas le format recommandé.\n\n` +
-                        `Format attendu: ${expectedFormat}.extension\n\n` +
-                        `Voulez-vous tout de même l'ajouter ?`
+            if (input.files.length > 0) {
+                Array.from(input.files).forEach(file => {
+                    // Générer le nom ZeenDoc automatiquement
+                    const nomZeenDoc = genererNomZeenDoc(file.name, nom, prenom, typeDemande, inputId);
+                    
+                    // Vérifier si le fichier n'est pas déjà dans la liste
+                    const exists = uploadedDocuments[inputId].some(existingFile => 
+                        existingFile.name === file.name && existingFile.size === file.size
                     );
                     
-                    if (!userConfirm) {
-                        return; // Skip ce fichier
+                    if (!exists) {
+                        uploadedDocuments[inputId].push({
+                            file: file,
+                            name: docName,
+                            nomOriginal: file.name,
+                            nomZeenDoc: nomZeenDoc,
+                            id: Date.now() + Math.random()
+                        });
                     }
-                }
-                
-                // Vérifier si le fichier n'est pas déjà dans la liste
-                const exists = uploadedDocuments[inputId].some(existingFile => 
-                    existingFile.name === file.name && existingFile.size === file.size
-                );
-                
-                if (!exists) {
-                    uploadedDocuments[inputId].push({
-                        file: file,
-                        name: docName,
-                        id: Date.now() + Math.random(),
-                        isValidName: isValidName || !nom || !prenom // Valid si pas encore de nom/prénom saisis
-                    });
-                }
-            });
-    
-            updateFileList(inputId);
+                });
+        
+                updateFileList(inputId);
+            }
+        
+            input.value = '';
+            updateSubmitButton();
         }
-    
-        input.value = '';
-        updateSubmitButton();
-    }
+
+        function genererNomZeenDoc(nomFichier, nom, prenom, typeDemande, docId) {
+            // Extraire l'extension
+            const extension = nomFichier.includes('.') ? nomFichier.split('.').pop().toLowerCase() : '';
+            
+            // Mapper les IDs vers des noms courts
+            const mappingDocs = {
+                'majProfil_doc': 'MAJ_Profil',
+                'etudeSignee_doc': 'Etude_Signee',
+                'cniValide_doc': 'CNI',
+                'justifDom_doc': 'Justif_Domicile',
+                'ribJour_doc': 'RIB',
+                'justifProvenance_doc': 'Justif_Provenance',
+                'justifDomImpot_doc': 'Justif_Dom_Impot',
+                'clauseBeneficiaire_doc': 'Clause_Beneficiaire',
+                'majProfilRachat_doc': 'MAJ_Profil',
+                'ribJourRachat_doc': 'RIB',
+                'majProfilArbitrage_doc': 'MAJ_Profil',
+                'ficheRenseignement_doc': 'Fiche_Renseignement',
+                'profilClientSigne_doc': 'Profil_Client',
+                'cartoClientSigne_doc': 'Cartographie',
+                'lettreMiseRelation_doc': 'Lettre_Relation',
+                'filSigne_doc': 'FIL',
+                'justifDomCreation_doc': 'Justif_Domicile',
+                'cniValideCreation_doc': 'CNI'
+            };
+            
+            const docType = mappingDocs[docId] || 'Document';
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            
+            if (!nom || !prenom) {
+                return `${typeDemande.toUpperCase()}_${docType}_${dateStr}${extension ? '.' + extension : ''}`;
+            }
+            
+            return `${typeDemande.toUpperCase()}_${nom.toUpperCase()}_${prenom}_${docType}_${dateStr}${extension ? '.' + extension : ''}`;
+        }
 
         function updateFileList(inputId) {
             const fileList = document.getElementById(inputId + '_list');
@@ -336,23 +349,17 @@
         
                 files.forEach((fileData, index) => {
                     const fileItem = document.createElement('div');
-                    fileItem.className = 'file-item';
-                    
-                    // Ajouter classe CSS selon la validité du nom
-                    if (fileData.isValidName === false) {
-                        fileItem.classList.add('invalid-name');
-                    }
+                    fileItem.className = 'file-item zeendoc-item';
                     
                     const fileSize = formatFileSize(fileData.file.size);
-                    const nameIndicator = fileData.isValidName === false ? ' ⚠️' : '';
                     
                     fileItem.innerHTML = `
                         <div class="file-item-info">
                             <span class="file-item-icon">📄</span>
                             <div>
-                                <div class="file-item-name">${fileData.file.name}${nameIndicator}</div>
+                                <div class="file-item-name-original">${fileData.nomOriginal}</div>
+                                <div class="file-item-name-zeendoc">📁 ZeenDoc: ${fileData.nomZeenDoc}</div>
                                 <div class="file-item-size">${fileSize}</div>
-                                ${fileData.isValidName === false ? '<div class="file-name-warning">Nom non conforme au format</div>' : ''}
                             </div>
                         </div>
                         <button type="button" class="file-item-remove" onclick="removeDocumentFile('${inputId}', ${index})">Supprimer</button>
@@ -423,12 +430,13 @@
         function createDocumentField(id, label, helpText, isRequired = true) {
             const requiredMark = isRequired ? '<span class="required">*</span>' : '';
             return `
-                <div class="document-field">
+                <div class="document-field zeendoc-field">
                     <label>${label}${requiredMark}</label>
                     <div class="file-upload">
                         <span class="file-upload-icon">📎</span>
                         <div class="file-upload-text">
                             <p>Glissez vos fichiers ici ou cliquez pour sélectionner</p>
+                            <small class="zeendoc-naming">Nommage automatique ZeenDoc activé</small>
                         </div>
                         <span class="file-upload-btn">Parcourir</span>
                         <input type="file" id="${id}" data-doc-name="${label}" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
@@ -730,7 +738,7 @@
                 // Envoyer au backend
                 const submitBtn = document.querySelector('.submit-btn');
                 submitBtn.disabled = true;
-                submitBtn.textContent = 'Envoi en cours...';
+                submitBtn.textContent = 'Préparation en cours...';
 
                 fetch('/envoyer-demande', {
                     method: 'POST',
@@ -739,40 +747,55 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        // Ouvrir automatiquement le client mail
-                        if (data.mailto_url) {
-                            window.location.href = data.mailto_url;
+                        let message = '✅ Demande préparée avec succès!\n\n';
+                        
+                        if (data.fichiers_count > 0) {
+                            message += `📁 ${data.fichiers_count} document(s) préparé(s) pour ZeenDoc:\n`;
+                            data.fichiers_info.forEach(nom => {
+                                message += `• ${nom}\n`;
+                            });
+                            message += '\n';
                         }
                         
-                        // Message de confirmation
-                        let message = 'Demande préparée avec succès!\n\n';
-                        if (data.download_link) {
-                            message += `Les documents ont été uploadés sur Swiss Transfer.\n`;
-                            message += `Lien: ${data.download_link}\n\n`;
+                        if (data.envoi_auto) {
+                            message += '📧 Email automatiquement envoyé vers ZeenDoc\n';
+                            message += '📩 Copie de suivi envoyée vers votre boîte mail\n\n';
+                        } else {
+                            message += '📧 Votre client mail va s\'ouvrir avec les emails pré-remplis:\n';
+                            message += '1. Email principal vers votre destinataire\n';
+                            if (data.mailto_zeendoc) {
+                                message += '2. Email vers ZeenDoc avec les pièces jointes\n';
+                            }
+                            message += '\n';
                         }
-                        message += 'Votre client mail va s\'ouvrir avec le message pré-rempli.\nVérifiez le contenu et cliquez sur "Envoyer".';
+                        
+                        message += 'Vérifiez le contenu et cliquez sur "Envoyer" dans votre client mail.';
                         
                         alert(message);
                         
-                        // Réinitialiser le formulaire
-                        form.reset();
-                        document.querySelectorAll('.type-card').forEach(card => card.classList.remove('active'));
-                        document.getElementById('specificFields').classList.add('hidden');
-                        selectedType = '';
-                        requiredDocuments = [];
-                        uploadedDocuments = {};
+                        // Ouvrir les emails
+                        if (data.mailto_principal) {
+                            setTimeout(() => {
+                                window.location.href = data.mailto_principal;
+                            }, 1000);
+                        }
                         
-                        // Remettre la date d'aujourd'hui
-                        const today = new Date().toISOString().split('T')[0];
-                        document.getElementById('dateDemande').value = today;
+                        if (data.mailto_zeendoc && !data.envoi_auto) {
+                            setTimeout(() => {
+                                window.open(data.mailto_zeendoc, '_blank');
+                            }, 2000);
+                        }
+                        
+                        // Réinitialiser le formulaire
+                        resetForm();
                         
                     } else {
-                        alert('Erreur lors de la préparation: ' + data.message);
+                        alert('❌ Erreur lors de la préparation: ' + data.message);
                     }
                 })
                 .catch(error => {
                     console.error('Erreur:', error);
-                    alert('Erreur technique lors de l\'envoi. Veuillez réessayer.');
+                    alert('❌ Erreur technique lors de l\'envoi. Veuillez réessayer.');
                 })
                 .finally(() => {
                     submitBtn.disabled = false;
@@ -781,10 +804,20 @@
                 });
             });
         }
+
+        function resetForm() {
+            const form = document.getElementById('demandeForm');
+            form.reset();
+            document.querySelectorAll('.type-card').forEach(card => card.classList.remove('active'));
+            document.getElementById('specificFields').classList.add('hidden');
+            selectedType = '';
+            requiredDocuments = [];
+            uploadedDocuments = {};
+            
+            // Remettre la date d'aujourd'hui
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dateDemande').value = today;
+        }
     </script>
 </body>
 </html>
-
-
-
-
