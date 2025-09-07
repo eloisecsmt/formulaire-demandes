@@ -12,8 +12,8 @@
             <h1>Gestion des Demandes Client</h1>
             <p>Sélectionnez le type de demande et complétez les informations requises</p>
             <div class="zeendoc-info">
-                <span class="zeendoc-badge">📁 Intégration ZeenDoc</span>
-                <small>Documents automatiquement envoyés vers votre dépôt ZeenDoc</small>
+                <span class="zeendoc-badge">📁 Intégration ZeenDoc Automatique</span>
+                <small>Documents automatiquement envoyés vers votre dépôt ZeenDoc + Email principal</small>
             </div>
         </div>
 
@@ -119,7 +119,7 @@
                     <div id="specificContent"></div>
                 </div>
 
-                <button type="submit" class="submit-btn" disabled>Envoyer la demande</button>
+                <button type="submit" class="submit-btn" disabled>Envoyer automatiquement la demande</button>
             </form>
         </div>
     </div>
@@ -218,13 +218,18 @@
                     Veuillez joindre au moins un document pour chaque catégorie requise avant de pouvoir envoyer la demande.
                 </div>
                 <div class="zeendoc-workflow-info">
-                    <h4>📁 Workflow ZeenDoc</h4>
+                    <h4>🚀 Workflow Automatique</h4>
                     <ol>
-                        <li>Vos documents seront automatiquement nommés selon le format ZeenDoc</li>
-                        <li>Un email sera généré vers votre adresse de dépôt ZeenDoc</li>
-                        <li>Les pièces seront classées par catégorie dans le dossier client</li>
-                        <li>Une copie de suivi vous sera envoyée</li>
+                        <li><strong>Email Principal:</strong> Envoyé avec archive ZIP si fichiers volumineux</li>
+                        <li><strong>ZeenDoc:</strong> Fichiers originaux envoyés (emails multiples si nécessaire)</li>
+                        <li><strong>Nommage:</strong> Format ZeenDoc appliqué automatiquement</li>
+                        <li><strong>Classement:</strong> Documents triés par catégorie</li>
+                        <li><strong>Suivi:</strong> Copies de confirmation envoyées</li>
                     </ol>
+                    <div class="auto-info">
+                        <span class="auto-badge">⚡ Envoi 100% automatique</span>
+                        <small>Plus besoin d'ouvrir votre client mail !</small>
+                    </div>
                 </div>
             `;
             specificContent.appendChild(validationDiv);
@@ -445,7 +450,7 @@
                         <span class="file-upload-icon">📎</span>
                         <div class="file-upload-text">
                             <p>Glissez vos fichiers ici ou cliquez pour sélectionner</p>
-                            <small class="zeendoc-naming">Nommage automatique ZeenDoc activé</small>
+                            <small class="zeendoc-naming">🚀 Envoi automatique vers ZeenDoc</small>
                         </div>
                         <span class="file-upload-btn">Parcourir</span>
                         <input type="file" id="${id}" data-doc-name="${label}" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
@@ -747,7 +752,7 @@
                 // Envoyer au backend
                 const submitBtn = document.querySelector('.submit-btn');
                 submitBtn.disabled = true;
-                submitBtn.textContent = 'Préparation en cours...';
+                submitBtn.textContent = 'Envoi automatique en cours...';
 
                 fetch('/envoyer-demande', {
                     method: 'POST',
@@ -756,10 +761,10 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        let message = '✅ Demande préparée avec succès!\n\n';
+                        let message = '✅ Demande envoyée automatiquement avec succès!\n\n';
                         
                         if (data.fichiers_count > 0) {
-                            message += `📁 ${data.fichiers_count} document(s) préparé(s) pour ZeenDoc:\n`;
+                            message += `📁 ${data.fichiers_count} document(s) traité(s):\n`;
                             data.fichiers_info.forEach(nom => {
                                 message += `• ${nom}\n`;
                             });
@@ -767,39 +772,40 @@
                         }
                         
                         if (data.envoi_auto) {
-                            message += '📧 Email automatiquement envoyé vers ZeenDoc\n';
-                            message += '📩 Copie de suivi envoyée vers votre boîte mail\n\n';
-                        } else {
-                            message += '📧 Votre client mail va s\'ouvrir avec les emails pré-remplis:\n';
-                            message += '1. Email principal vers votre destinataire\n';
-                            if (data.mailto_zeendoc) {
-                                message += '2. Email vers ZeenDoc avec les pièces jointes\n';
+                            message += '🚀 ENVOIS AUTOMATIQUES RÉUSSIS:\n\n';
+                            
+                            // Email principal
+                            if (data.details_envoi.email_principal) {
+                                message += '📧 Email principal: ✅ Envoyé\n';
                             }
-                            message += '\n';
+                            
+                            // Emails ZeenDoc
+                            if (data.details_envoi.total_emails_zeendoc > 0) {
+                                if (data.details_envoi.total_emails_zeendoc > 1) {
+                                    message += `📁 ZeenDoc: ${data.details_envoi.total_emails_zeendoc} emails envoyés (fichiers volumineux)\n`;
+                                    data.details_envoi.zeendoc_parties.forEach(partie => {
+                                        const status = partie.succes ? '✅' : '❌';
+                                        message += `   └─ Partie ${partie.partie}: ${status} ${partie.fichiers_count} fichier(s)\n`;
+                                    });
+                                } else {
+                                    message += '📁 ZeenDoc: ✅ Email envoyé\n';
+                                }
+                            }
+                            
+                            message += '\n🎉 Tous les destinataires ont été notifiés automatiquement !';
+                            
+                        } else {
+                            message += '❌ Erreur lors de l\'envoi automatique.\n';
+                            message += 'Veuillez vérifier votre configuration SMTP.';
                         }
-                        
-                        message += 'Vérifiez le contenu et cliquez sur "Envoyer" dans votre client mail.';
                         
                         alert(message);
-                        
-                        // Ouvrir les emails
-                        if (data.mailto_principal) {
-                            setTimeout(() => {
-                                window.location.href = data.mailto_principal;
-                            }, 1000);
-                        }
-                        
-                        if (data.mailto_zeendoc && !data.envoi_auto) {
-                            setTimeout(() => {
-                                window.open(data.mailto_zeendoc, '_blank');
-                            }, 2000);
-                        }
                         
                         // Réinitialiser le formulaire
                         resetForm();
                         
                     } else {
-                        alert('❌ Erreur lors de la préparation: ' + data.message);
+                        alert('❌ Erreur lors de l\'envoi: ' + data.message);
                     }
                 })
                 .catch(error => {
@@ -808,7 +814,7 @@
                 })
                 .finally(() => {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Envoyer la demande';
+                    submitBtn.textContent = 'Envoyer automatiquement la demande';
                     updateSubmitButton();
                 });
             });
