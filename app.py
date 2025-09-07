@@ -18,10 +18,10 @@ EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com
 ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'eloise.csmt@gmail.com')  # Adresse ZeenDoc
 
 # Configuration SMTP (optionnelle pour envoi automatique)
-SMTP_SERVER = os.environ.get('SMTP_SERVER', '')
+SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
-SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_USERNAME = os.environ.get('SMTP_USERNAME', 'optiazeendoc@gmail.com')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', 'yreh pqdc ffzy jmgc')
 
 # Servir les fichiers statiques (HTML, CSS)
 @app.route('/')
@@ -638,4 +638,5 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
