@@ -20,9 +20,9 @@ CORS(app)
 EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'gestionprivee@optia-conseil.fr')
 
 # Adresses ZeenDoc par secteur
-ZEENDOC_EMAIL_LEHAVRE = os.environ.get('ZEENDOC_EMAIL_LEHAVRE', 'depot_lehavre.optia_finance@zeenmail.com')
-ZEENDOC_EMAIL_ROUEN = os.environ.get('ZEENDOC_EMAIL_ROUEN', 'depot_rouen.optia_finance@zeenmail.com')
-ZEENDOC_EMAIL_PARIS = os.environ.get('ZEENDOC_EMAIL_PARIS', 'depot_paris.optia_finance@zeenmail.com')
+ZEENDOC_EMAIL_LEHAVRE = os.environ.get('ZEENDOC_EMAIL_LEHAVRE', 'depot_docusign.optia_finance@zeenmail.com')
+ZEENDOC_EMAIL_ROUEN = os.environ.get('ZEENDOC_EMAIL_ROUEN', 'depot_docusign.optia_finance@zeenmail.com')
+ZEENDOC_EMAIL_PARIS = os.environ.get('ZEENDOC_EMAIL_PARIS', 'depot_docusign.agenc_paris.optia_finance@zeenmail.com')
 
 # Mapping secteur -> adresse ZeenDoc
 ZEENDOC_EMAILS = {
@@ -698,3 +698,4 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
