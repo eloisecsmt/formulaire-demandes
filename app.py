@@ -17,8 +17,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Configuration Email pour ZeenDoc
-EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'eloise.csmt@gmail.com')
-ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'repos@zeendoc.com')  # Adresse ZeenDoc
+EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', 'gestionprivee@optia-conseil.fr')
+ZEENDOC_EMAIL = os.environ.get('ZEENDOC_EMAIL', 'depot_docusign.optia_finance@zeenmail.com')  # Adresse ZeenDoc
 
 # Configuration SMTP (maintenant obligatoire)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', '')
@@ -651,3 +651,4 @@ if __name__ == '__main__':
     # En production sur Render, utiliser le port fourni par la plateforme
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
